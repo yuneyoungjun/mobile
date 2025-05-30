@@ -54,18 +54,6 @@ class ParticleFilterNode(Node):
         map_data = np.where(map_img < 127, 1, 0)
         return map_data, resolution, origin
 
-    # def generate_particles(self):
-    #     h, w = self.map_data.shape
-    #     particles = []
-    #     while len(particles) < self.num_particles:
-    #         x = np.random.uniform(0, w * self.resolution)
-    #         y = np.random.uniform(0, h * self.resolution)
-    #         map_x = int((x - self.origin[0]) / self.resolution)
-    #         map_y = int((y - self.origin[1]) / self.resolution)
-    #         if 0 <= map_x < w and 0 <= map_y < h and self.map_data[map_y][map_x] == 0:
-    #             theta = np.random.uniform(-np.pi, np.pi)
-    #             particles.append((x, y, theta))
-    #     return particles
 
     def generate_particles(self):
         particles = []
@@ -171,7 +159,7 @@ class ParticleFilterNode(Node):
 
     def publish_particles(self, particles, weights):
         msg = PoseArray()
-        msg.header.frame_id = 'base_scan'
+        msg.header.frame_id = 'map'
         msg.header.stamp = self.get_clock().now().to_msg()
 
         for (x, y, theta) in particles:
@@ -191,7 +179,7 @@ class ParticleFilterNode(Node):
         best_particle = particles[best_index]
         best_pose_stamped = PoseStamped()
         best_pose_stamped.header.stamp = self.get_clock().now().to_msg()
-        best_pose_stamped.header.frame_id = "base_scan"
+        best_pose_stamped.header.frame_id = "map"
         best_pose_stamped.pose.position.x = best_particle[1]
         best_pose_stamped.pose.position.y = best_particle[0]
         print(best_particle[0])
