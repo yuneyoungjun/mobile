@@ -12,35 +12,38 @@ from tf2_ros import TransformBroadcaster
 from scipy.stats import norm
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from rclpy.qos import qos_profile_sensor_data
+
+
 class ParticleFilterNode(Node):
     def __init__(self):
         super().__init__('particle_filter')
         self.best_pose_stamped = None
 
+
         self.declare_parameter('map_path', os.path.expanduser('~/map_217.yaml'))
         map_path = self.get_parameter('map_path').get_parameter_value().string_value
+
 
         self.map_data, self.resolution, self.origin = self.load_map(map_path)
         self.get_logger().info('Map loaded.')
 
-        self.num_particles = 200
+
+        self.num_particles = 60
         self.min_particles = 20
         self.max_particles = 20
-        self.ess_threshold = 0.5  # Effective Sample Size ratio threshold
+        self.ess_threshold = 0.5
+
 
         self.particles = self.generate_particles()
         self.prev_odom = None
         self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
-        self.create_subscription(
-            LaserScan,
-            '/scan',
-            self.laser_callback,
-            qos_profile_sensor_data
-        )
+        self.create_subscription(LaserScan, '/scan', self.laser_callback, qos_profile_sensor_data)
+
 
         self.particle_pub = self.create_publisher(PoseArray, '/particles', 10)
         self.tf_broadcaster = TransformBroadcaster(self)
         self.best_particle_pub = self.create_publisher(PoseWithCovarianceStamped, '/amcl_pose', 10)
+
 
     def load_map(self, map_yaml_path):
         with open(map_yaml_path, 'r') as f:
@@ -54,26 +57,23 @@ class ParticleFilterNode(Node):
         map_data = np.where(map_img < 127, 1, 0)
         return map_data, resolution, origin
 
-
     def generate_particles(self):
         particles = []
-        center_x = 0.0  # 초기 위치 x
-        center_y = 0.0  # 초기 위치 y
+        center_x = 0.0
+        center_y = 0.0
         h, w = self.map_data.shape
 
         while len(particles) < self.num_particles:
-            x = np.random.normal(center_x, 0.1)  # 중심에서 약간의 노이즈
+            x = np.random.normal(center_x, 0.1)
             y = np.random.normal(center_y, 0.1)
             map_x = int((x - self.origin[0]) / self.resolution)
             map_y = int((y - self.origin[1]) / self.resolution)
 
             if 0 <= map_x < w and 0 <= map_y < h and self.map_data[map_y][map_x] == 0:
-                theta = 0.0  # 시작 방향을 0으로 고정
+                theta = 0.0
                 particles.append((x, y, theta))
 
         return particles
-
-
 
     def odom_callback(self, msg):
         if self.prev_odom is None:
@@ -159,13 +159,13 @@ class ParticleFilterNode(Node):
 
     def publish_particles(self, particles, weights):
         msg = PoseArray()
-        msg.header.frame_id = 'map'
+        msg.header.frame_id = 'map'  # ✅ 좌표계 변경
         msg.header.stamp = self.get_clock().now().to_msg()
 
         for (x, y, theta) in particles:
             pose = Pose()
-            pose.position.x = y
-            pose.position.y = x
+            pose.position.x = x
+            pose.position.y = y
             qz = math.sin(theta / 2.0)
             qw = math.cos(theta / 2.0)
             pose.orientation.z = qz
@@ -174,39 +174,31 @@ class ParticleFilterNode(Node):
 
         self.particle_pub.publish(msg)
 
-        # 🚀 Best Particle 선택 및 변환
         best_index = np.argmax(weights)
         best_particle = particles[best_index]
         best_pose_stamped = PoseStamped()
         best_pose_stamped.header.stamp = self.get_clock().now().to_msg()
-        best_pose_stamped.header.frame_id = "map"
-        best_pose_stamped.pose.position.x = best_particle[1]
-        best_pose_stamped.pose.position.y = best_particle[0]
-        print(best_particle[0])
-        print(best_particle[1])
+        best_pose_stamped.header.frame_id = "map"  # ✅ 좌표계 변경
+        best_pose_stamped.pose.position.x = -best_particle[0]
+        best_pose_stamped.pose.position.y = -best_particle[1]
         best_pose_stamped.pose.position.z = 0.0
 
         qx, qy, qz, qw = self.quaternion_from_yaw(best_particle[2])
         best_pose_stamped.pose.orientation.x = qx
         best_pose_stamped.pose.orientation.y = qy
         best_pose_stamped.pose.orientation.z = qz
-        best_pose_stamped.pose.orientation.w = qw
+        best_pose_stamped.pose.orientation.w = -qw
 
-        # ✅ 속성을 올바르게 설정
         self.best_pose_stamped = best_pose_stamped
-
-        # ✅ PoseStamped → PoseWithCovarianceStamped 변환 및 퍼블리시
         best_pose_covariance = self.convert_pose_stamped_to_covariance(self.best_pose_stamped)
         self.best_particle_pub.publish(best_pose_covariance)
-
-
 
     def publish_tf(self, best_particle):
         x, y, theta = best_particle
         t = TransformStamped()
         t.header.stamp = self.get_clock().now().to_msg()
-        t.header.frame_id = "map"
-        t.child_frame_id = "base_scan"
+        t.header.frame_id = "map"  # ✅ 좌표계 변경
+        t.child_frame_id = "odom"
         t.transform.translation.x = x
         t.transform.translation.y = y
         t.transform.translation.z = 0.0
@@ -227,12 +219,14 @@ class ParticleFilterNode(Node):
         qz = math.sin(yaw / 2.0)
         qw = math.cos(yaw / 2.0)
         return qx, qy, qz, qw
-    def convert_pose_stamped_to_covariance(self,pose_stamped):
+
+    def convert_pose_stamped_to_covariance(self, pose_stamped):
         pose_covariance = PoseWithCovarianceStamped()
         pose_covariance.header = pose_stamped.header
         pose_covariance.pose.pose = pose_stamped.pose
-        pose_covariance.pose.covariance = [0.0] * 36  # 기본값 설정 (필요하면 수정 가능)
+        pose_covariance.pose.covariance = [0.0] * 36
         return pose_covariance
+
 
 def main(args=None):
     rclpy.init(args=args)
@@ -240,6 +234,7 @@ def main(args=None):
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()

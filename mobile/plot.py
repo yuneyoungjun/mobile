@@ -38,6 +38,7 @@ class LivePlotter(Node):
         (_, _, self.robot_theta) = euler_from_quaternion([
             orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w
         ])
+        self.get_logger().info(f"rho: {self.robot_theta:.2f}")
 
     def laser_callback(self, msg):
         self.laser_ranges = np.array(msg.ranges)
@@ -99,7 +100,7 @@ class LivePlotter(Node):
             global_y = (np.sin(self.robot_theta) * local_y + np.cos(self.robot_theta) * local_x)
 
 
-            self.ax.scatter(global_x, global_y, c='g', marker='.', alpha=0.5, label='LiDAR')
+            self.ax.scatter(local_x, local_y, c='g', marker='.', alpha=0.5, label='LiDAR')
 
         self.ax.legend()
         self.fig.canvas.draw()

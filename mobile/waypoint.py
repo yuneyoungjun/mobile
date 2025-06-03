@@ -17,7 +17,7 @@ class WaypointPublisher(Node):
     def publish_waypoints(self):
         msg = PoseArray()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = "map"
+        msg.header.frame_id = "odom"
 
         for wp in self.waypoints:
             pose = Pose()

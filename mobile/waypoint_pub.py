@@ -13,10 +13,13 @@ class LivePlotter(Node):
         self.robot_x = 0.5
         self.robot_y = 0.5
         self.robot_theta = 0.0
-        self.waypoints = []
-        self.current_waypoint_idx = None
+        self.waypoints = [[1.5,0.0]]
+        self.current_waypoint_idx = 0
         self.laser_ranges = []
         self.laser_angles = []
+        self.first=0
+        self.initial_x=0
+        self.initial_x=0
 
         # ROS 2 구독자
         self.create_subscription(PoseWithCovarianceStamped, '/amcl_pose', self.pose_callback, 10)
@@ -41,6 +44,7 @@ class LivePlotter(Node):
         self.timer = self.create_timer(0.1, self.timer_callback)
 
     def pose_callback(self, msg):
+        self.first+=1
         self.robot_x = msg.pose.pose.position.x
         self.robot_y = msg.pose.pose.position.y
         orientation_q = msg.pose.pose.orientation
@@ -75,10 +79,15 @@ class LivePlotter(Node):
 
         for wp in self.waypoints:
             pose = Pose()
-            pose.position.x = wp[1]*np.cos(self.robot_theta)
-            pose.position.y = wp[0]*np.cos(self.robot_theta)
+            # if self.first<4:
+            #     self.initial_x=self.robot_x
+            #     self.initial_y=self.robot_y
+            # pose.position.x = wp[0]*np.cos(self.robot_theta)
+            # pose.position.y = wp[1]*np.sin(self.robot_theta)
+            # pose.position.x= wp[0]+self.initial_x
+            # pose.position.y = wp[1]+self.initial_y
+            pose.position.y=  wp[0]
             pose.position.x = wp[1]
-            pose.position.y = wp[0]
             pose.position.z = 0.0
             qx, qy, qz, qw = quaternion_from_euler(0, 0, 0)
             pose.orientation.x = qx
