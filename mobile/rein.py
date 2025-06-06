@@ -31,9 +31,10 @@ class TurtleBotController(Node):
         self.target_position = np.zeros(3, dtype=np.float32)
         self.input_vector = np.zeros(130, dtype=np.float32)
         self.history = []
-        self.v_sale = 0.09
+        # self.v_sale = 0.09
+        self.v_sale = 0.1
         # self.w_sale = 0.3
-        self.w_sale = 0.3
+        self.w_sale =-0.7
 
         # ✅ 최근 속도 저장용 변수
         self.linear_velocity = 0.0
@@ -51,11 +52,11 @@ class TurtleBotController(Node):
         ], dtype=np.float32)
 
         orientation_q = msg.pose.pose.orientation
-        (_, _, yaw) = -euler_from_quaternion([
+        (_, _, yaw) = euler_from_quaternion([
             orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w
         ])
-
-        self.robot_forward = np.array([np.cos(yaw), np.sin(yaw), 0.0], dtype=np.float32)
+        yaw=(yaw+np.pi)%np.pi-np.pi
+        self.robot_forward = np.array([np.cos(-yaw), np.sin(-yaw), 0.0], dtype=np.float32)
 
     def lidar_callback(self, msg):
         """ ✅ -60도에서 60도 사이 121개 샘플을 저장 """
@@ -78,8 +79,7 @@ class TurtleBotController(Node):
             ], dtype=np.float32)
 
         # ✅ 입력 벡터 생성
-        print(len(self.lidar_data))
-        self.input_vector[:121] = self.lidar_data * 10
+        self.input_vector[:121] = self.lidar_data *15
         self.input_vector[121:124] = self.robot_forward
         self.input_vector[124:127] = self.robot_position
         self.input_vector[127:130] = self.target_position
@@ -96,7 +96,7 @@ class TurtleBotController(Node):
         outputs = self.session.run(None, {self.input_name: model_input})
 
         if len(msg.markers) != 0:
-            self.linear_velocity = max(min(outputs[2][0][1] * self.v_sale, 0.1), -0.3)+0.2
+            self.linear_velocity = max(min(outputs[2][0][1] * self.v_sale, 0.3), -0.3)+0.02
             self.angular_velocity = max(min(outputs[2][0][0] * self.w_sale, 0.4), -0.4)
             # if self.linear_velocity <=0:
             #     self.angular_velocity=-self.angular_velocity
