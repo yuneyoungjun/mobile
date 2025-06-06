@@ -16,7 +16,7 @@ class GoalNavigationNode(Node):
 
         # 목표 위치
         self.goal_x = 1.0
-        self.goal_y = 0.0
+        self.goal_y = -1.0
         self.goal_theta = 90.0  # deg
 
         # 제어 파라미터
@@ -27,7 +27,7 @@ class GoalNavigationNode(Node):
 
         # 속도 제한
         self.max_linear_velocity = 0.1   # m/s
-        self.max_angular_velocity = 1.0  # rad/s
+        self.max_angular_velocity = 0.3  # rad/s
 
         # 방향 설정
         self.setDirection()
@@ -94,11 +94,11 @@ class GoalNavigationNode(Node):
         if self.mode == "2":
             v = -v
 
-        if rho < 0.05:
+        if rho < 0.05 :
             v = 0
             heading_error = self.saturationRad(np.deg2rad(self.goal_theta) - np.deg2rad(self.robot_theta))
             w = 1.0 * heading_error
-            if abs(heading_error) < 3 * np.pi / 180:
+            if abs(heading_error) < 5 * np.pi / 180:
                 w = 0.0
 
         return v, w

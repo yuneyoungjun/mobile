@@ -1,142 +1,140 @@
 import rclpy
 from rclpy.node import Node
+from geometry_msgs.msg import Twist
+from geometry_msgs.msg import PoseWithCovarianceStamped
 import numpy as np
-from geometry_msgs.msg import PoseArray, Pose, PoseWithCovarianceStamped, Twist
-from tf_transformations import quaternion_from_euler, euler_from_quaternion
+import math
 
-# 🚀 **웨이포인트 퍼블리셔 노드**
-class WaypointPublisher(Node):
-    def __init__(self, waypoints):
-        super().__init__('waypoint_publisher')
-        self.waypoints = waypoints
-        self.waypoint_pub = self.create_publisher(PoseArray, '/waypoints', 10)
-
-        # ✅ 일정 간격으로 웨이포인트 퍼블리시
-        self.timer = self.create_timer(1.0, self.publish_waypoints)
-
-    def publish_waypoints(self):
-        msg = PoseArray()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = "odom"
-
-        for wp in self.waypoints:
-            pose = Pose()
-            pose.position.x = wp[0]
-            pose.position.y = wp[1]
-            pose.position.z = 0.0
-
-            qx, qy, qz, qw = quaternion_from_euler(0, 0, 0)  # 방향 제거
-            pose.orientation.x = qx
-            pose.orientation.y = qy
-            pose.orientation.z = qz
-            pose.orientation.w = qw
-
-            msg.poses.append(pose)
-
-        self.get_logger().info("Publishing waypoints...")
-        self.waypoint_pub.publish(msg)
-
-
-# 🚀 **웨이포인트를 따라가는 로봇 노드**
-class DifferentialDriveRobot(Node):
+class GoalNavigationNode(Node):
     def __init__(self):
-        super().__init__('waypoint_follower')
-        self.waypoints = []  # 웨이포인트 저장
-        self.current_waypoint_idx = 0  # 현재 목표 웨이포인트 인덱스
-        self.k_rho = 3.0
-        self.k_alpha = 8.0
-        self.k_beta = 0
-        self.mission_complete = False  # 모든 웨이포인트 완료 여부
+        super().__init__('goal_navigation_node')
 
-        self.create_subscription(PoseArray, '/waypoints', self.waypoints_callback, 10)
-        self.create_subscription(PoseWithCovarianceStamped, '/amcl_pose', self.step, 10)
-        self.vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        # Robot 초기 위치
+        self.robot_x = 0.0
+        self.robot_y = 0.0
+        self.robot_theta = 0.0  # deg
 
-        self.prev_twist = Twist()
-        self.prev_twist.linear.x = 0.0
-        self.prev_twist.angular.z = 0.0
-        self.timer = self.create_timer(0.05, self.publish_twist)
+        # 목표 위치
+        self.goal_x = 0.0
+        self.goal_y = 0.0
+        self.goal_theta = 90.0  # deg
+        self.waypoint=[[0.0,0.0],[2.1,0.8],[3.83, -1.02],[5.75,0.47],[0.0,0.0] ]
+        self.range=0.25
 
-    def waypoints_callback(self, msg):
-        self.waypoints = [[pose.position.x, pose.position.y] for pose in msg.poses]
-        self.get_logger().info("Waypoints received!")
 
-    def step(self, msg):
-        if self.mission_complete or not self.waypoints:
-            return
+        # 제어 파라미터
+        self.K_rho = 0.3
+        self.K_alpha = 0.7
+        self.K_beta = -0.0
+        self.mode = "1"  # 주행 방향 (전진 or 후진)
 
-        x = msg.pose.pose.position.x
-        y = msg.pose.pose.position.y
-        orientation_q = msg.pose.pose.orientation
-        (_, _, psi) = euler_from_quaternion([
-            orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w
-        ])
+        # 속도 제한
+        self.max_linear_velocity = 0.1   # m/s
+        self.max_angular_velocity = 0.5  # rad/s
 
-        # ✅ 현재 목표 웨이포인트 가져오기
-        goal_x, goal_y = self.waypoints[self.current_waypoint_idx]
-        dx = goal_x - x
-        dy = goal_y - y
+        # 방향 설정
+        self.setDirection()
+
+        self.best_particle_sub = self.create_subscription(
+            PoseWithCovarianceStamped,
+            '/amcl_pose',
+            self.pose_callback,
+            10
+        )
+        self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.timer = self.create_timer(0.1, self.timer_callback)
+
+        self.get_logger().info("Goal Navigation Node Started.")
+
+    def setDirection(self):
+        dx = self.goal_x - self.robot_x
+        dy = self.goal_y - self.robot_y
+        alpha = self.saturationRad(np.arctan2(dy, dx) - np.deg2rad(self.robot_theta))
+        self.mode = "2" if abs(alpha) > np.pi / 2 else "1"
+
+    def pose_callback(self, msg):
+        pose = msg.pose.pose
+        x = pose.position.x
+        y = pose.position.y
+
+        q = pose.orientation
+        siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
+        cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+        theta = math.atan2(siny_cosp, cosy_cosp)
+
+        self.robot_x = x
+        self.robot_y = y
+        self.robot_theta = self.saturationRad(theta) * 180 / np.pi
+
+    def timer_callback(self):
+        v, w = self.calculateVelocity()
+        v = self.saturationVelocity(v)
+        w = self.saturationAngularVelocity(w)
+
+
+
+        if self.waypoint:
+            self.goal_x=self.waypoint[0][0]
+            self.goal_y=self.waypoint[0][1]
+            self.goal_theta=0
+        else:
+            v=0
+            w=0
+
+
+        print(self.goal_x)
+        print(self.goal_y)
+        twist = Twist()
+        twist.linear.x = float(v)
+        twist.angular.z = float(w)
+        self.cmd_vel_pub.publish(twist)
+        self.get_logger().info(f"x={self.robot_x:.2f}, y={self.robot_y:.2f}, theta={self.robot_theta:.2f}")
+        self.get_logger().info(f"Publishing cmd_vel: v={v:.2f}, w={w:.2f}")
+
+    def calculateVelocity(self):
+        dx = self.goal_x - self.robot_x
+        dy = self.goal_y - self.robot_y
+
+        path_theta = np.arctan2(dy, dx)
+        if self.mode == "2":
+            path_theta = self.saturationRad(path_theta + np.pi)
+
         rho = np.hypot(dx, dy)
-        angle_to_goal = np.arctan2(dy, dx)
+        alpha = self.saturationRad(path_theta - np.deg2rad(self.robot_theta))
+        beta = self.saturationRad(np.deg2rad(self.goal_theta) - path_theta)
 
-        alpha = angle_to_goal - psi
+        v = self.K_rho * rho
+        w = self.K_alpha * alpha + self.K_beta * beta
 
-        forward = True
-        if abs(alpha) > np.pi / 2:
-            alpha += np.pi
-            forward = not forward
+        if self.mode == "2":
+            v = -v
 
-        v = self.k_rho * rho * np.exp(-rho)
-        if not forward:
-            v *= -1
+        if rho < self.range:
+            self.waypoint.pop(0)
 
-        w = self.k_alpha * alpha
+        return v, w
 
-        scale_v = 0.1
-        scale_w = 0.1
-        w *= scale_w * (1 - np.exp(-rho))
-        v *= scale_v * (1 - np.exp(-rho))
+    def saturationRad(self, rad):
+        return (rad + np.pi) % (2 * np.pi) - np.pi
 
-        self.get_logger().info(f"Waypoint {self.current_waypoint_idx}: x={x}, y={y}, psi={psi}, alpha={alpha}")
-        self.get_logger().info(f"v={v}, w={w}")
+    def saturationVelocity(self, v):
+        return max(-self.max_linear_velocity, min(self.max_linear_velocity, v))
 
-        # ✅ 속도 업데이트
-        self.prev_twist.linear.x = v
-        self.prev_twist.angular.z = w
+    def saturationAngularVelocity(self, w):
+        return max(-self.max_angular_velocity, min(self.max_angular_velocity, w))
 
-        # ✅ 웨이포인트 도착 검사
-        if abs(dx) < 0.1 and abs(dy) < 0.1:
-            self.get_logger().info(f"Waypoint {self.current_waypoint_idx} reached! 🚀")
-            self.current_waypoint_idx += 1  # 다음 웨이포인트로 이동
 
-            if self.current_waypoint_idx >= len(self.waypoints):
-                self.get_logger().info("All waypoints completed. Stopping robot.")
-                self.mission_complete = True
-                self.prev_twist.linear.x = 0.0
-                self.prev_twist.angular.z = 0.0
-
-    def publish_twist(self):
-        self.vel_pub.publish(self.prev_twist)
 
 def main(args=None):
     rclpy.init(args=args)
-
-    # ✅ 이동할 웨이포인트 리스트
-    waypoints = [[1.0, 1.0], [2.0, 0.0], [2.0, 2.0], [0.0, 2.0]]
-
-    # ✅ 두 개의 노드 실행
-    wp_publisher = WaypointPublisher(waypoints)
-    wp_follower = DifferentialDriveRobot()
-
-    executor = rclpy.executors.MultiThreadedExecutor()
-    executor.add_node(wp_publisher)
-    executor.add_node(wp_follower)
-
-    executor.spin()
-
-    wp_publisher.destroy_node()
-    wp_follower.destroy_node()
-    rclpy.shutdown()
+    node = GoalNavigationNode()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        node.get_logger().info("Shutting down node.")
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
