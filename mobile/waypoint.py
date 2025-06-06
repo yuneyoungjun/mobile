@@ -45,7 +45,7 @@ class DifferentialDriveRobot(Node):
         self.current_waypoint_idx = 0  # 현재 목표 웨이포인트 인덱스
         self.k_rho = 3.0
         self.k_alpha = 8.0
-        self.k_beta = -1.5
+        self.k_beta = 0
         self.mission_complete = False  # 모든 웨이포인트 완료 여부
 
         self.create_subscription(PoseArray, '/waypoints', self.waypoints_callback, 10)
