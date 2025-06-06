@@ -15,9 +15,9 @@ class GoalNavigationNode(Node):
         self.robot_theta = 0.0  # deg
 
         # 목표 위치
-        self.goal_x = 1.0
-        self.goal_y = -1.0
-        self.goal_theta = 90.0  # deg
+        self.goal_x = 3.0
+        self.goal_y = 0.0
+        self.goal_theta = 180.0  # deg
 
         # 제어 파라미터
         self.K_rho = 0.3
@@ -94,10 +94,10 @@ class GoalNavigationNode(Node):
         if self.mode == "2":
             v = -v
 
-        if rho < 0.05 :
+        if rho < 0.15 :
             v = 0
             heading_error = self.saturationRad(np.deg2rad(self.goal_theta) - np.deg2rad(self.robot_theta))
-            w = 1.0 * heading_error
+            w = 0.3 * heading_error
             if abs(heading_error) < 5 * np.pi / 180:
                 w = 0.0
 
