@@ -32,6 +32,7 @@ class TurtleBotController(Node):
         self.input_vector = np.zeros(130, dtype=np.float32)
         self.history = []
         self.v_sale = 0.09
+        # self.w_sale = 0.3
         self.w_sale = 0.3
 
         # ✅ 최근 속도 저장용 변수
@@ -44,13 +45,13 @@ class TurtleBotController(Node):
     def pose_callback(self, msg):
         """ ✅ 로봇 위치 및 방향 업데이트 """
         self.robot_position = np.array([
+            -msg.pose.pose.position.y,
             msg.pose.pose.position.x,
-            msg.pose.pose.position.y,
             0
         ], dtype=np.float32)
 
         orientation_q = msg.pose.pose.orientation
-        (_, _, yaw) = euler_from_quaternion([
+        (_, _, yaw) = -euler_from_quaternion([
             orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w
         ])
 
@@ -71,8 +72,8 @@ class TurtleBotController(Node):
         if msg.markers:
             target_marker = msg.markers[-1]
             self.target_position = np.array([
+                -target_marker.pose.position.y,
                 target_marker.pose.position.x,
-                target_marker.pose.position.y,
                 0
             ], dtype=np.float32)
 
