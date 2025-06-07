@@ -6,21 +6,17 @@ from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import PoseWithCovarianceStamped, PoseArray, Pose
 from tf_transformations import euler_from_quaternion, quaternion_from_euler
 from rclpy.qos import qos_profile_sensor_data
-from visualization_msgs.msg import Marker, MarkerArray
 
 class LivePlotter(Node):
     def __init__(self):
         super().__init__('live_plotter')
-        self.robot_x = 0.0
-        self.robot_y = 0.0
+        self.robot_x = 0.5
+        self.robot_y = 0.5
         self.robot_theta = 0.0
-        self.waypoints = [[0.0,0.0]]
-        self.current_waypoint_idx = 0
+        self.waypoints = []
+        self.current_waypoint_idx = None
         self.laser_ranges = []
         self.laser_angles = []
-        self.first=0
-        self.initial_x=0
-        self.initial_x=0
 
         # ROS 2 구독자
         self.create_subscription(PoseWithCovarianceStamped, '/amcl_pose', self.pose_callback, 10)
@@ -34,7 +30,7 @@ class LivePlotter(Node):
         )
 
         # ROS 2 퍼블리셔 (클릭으로 추가된 웨이포인트 지속 발행)
-        self.waypoint_pub = self.create_publisher(MarkerArray, '/waypoints', 10)
+        self.waypoint_pub = self.create_publisher(PoseArray, '/waypoints', 10)
 
         # Matplotlib 시각화
         plt.ion()
@@ -45,7 +41,6 @@ class LivePlotter(Node):
         self.timer = self.create_timer(0.1, self.timer_callback)
 
     def pose_callback(self, msg):
-        self.first+=1
         self.robot_x = msg.pose.pose.position.x
         self.robot_y = msg.pose.pose.position.y
         orientation_q = msg.pose.pose.orientation
@@ -58,7 +53,6 @@ class LivePlotter(Node):
         angle_min = msg.angle_min
         angle_increment = msg.angle_increment
         self.laser_angles = angle_min + np.arange(len(self.laser_ranges)) * angle_increment
-        print(len(msg.ranges))
 
     def onclick(self, event):
         """ ✅ 마우스 클릭 시 좌표를 웨이포인트로 추가 """
@@ -75,32 +69,25 @@ class LivePlotter(Node):
         self.publish_waypoints()
 
     def publish_waypoints(self):
-        marker_array = MarkerArray()
+        msg = PoseArray()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = "map"
 
-        for i, (x, y) in enumerate(self.waypoints):
-            marker = Marker()
-            marker.header.frame_id = "map"
-            marker.header.stamp = self.get_clock().now().to_msg()
-            marker.ns = "waypoints"
-            marker.id = i
-            marker.type = Marker.SPHERE
-            marker.action = Marker.ADD
-            marker.pose.position.x = x
-            marker.pose.position.y = y
-            marker.pose.position.z = 0.2
-            marker.pose.orientation.w = 1.0
-            marker.scale.x = 0.3
-            marker.scale.y = 0.3
-            marker.scale.z = 0.3
-            marker.color.r = 1.0
-            marker.color.g = 0.0
-            marker.color.b = 0.0
-            marker.color.a = 1.0
-            marker.lifetime.sec = 0  # 0이면 무한
+        for wp in self.waypoints:
+            pose = Pose()
+            pose.position.x = wp[1]*np.cos(self.robot_theta)
+            pose.position.y = wp[0]*np.cos(self.robot_theta)
+            pose.position.x = wp[1]
+            pose.position.y = wp[0]
+            pose.position.z = 0.0
+            qx, qy, qz, qw = quaternion_from_euler(0, 0, 0)
+            pose.orientation.x = qx
+            pose.orientation.y = qy
+            pose.orientation.z = qz
+            pose.orientation.w = qw
+            msg.poses.append(pose)
 
-            marker_array.markers.append(marker)
-
-        self.waypoint_pub.publish(marker_array)
+        self.waypoint_pub.publish(msg)
 
     def update_plot(self):
         self.ax.clear()
