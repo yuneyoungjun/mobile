@@ -16,8 +16,8 @@ class GoalNavigationNode(Node):
 
         # 목표 위치
         self.goal_x = 3.0
-        self.goal_y = 0.0
-        self.goal_theta = 180.0  # deg
+        self.goal_y = -0.2
+        self.goal_theta = 90.0  # deg
 
         # 제어 파라미터
         self.K_rho = 0.3

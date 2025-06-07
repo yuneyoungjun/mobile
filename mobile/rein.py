@@ -32,9 +32,9 @@ class TurtleBotController(Node):
         self.input_vector = np.zeros(130, dtype=np.float32)
         self.history = []
         # self.v_sale = 0.09
-        self.v_sale = 0.1
+        self.v_sale = 0.2
         # self.w_sale = 0.3
-        self.w_sale =-0.7
+        self.w_sale =0.2
 
         # ✅ 최근 속도 저장용 변수
         self.linear_velocity = 0.0
@@ -55,15 +55,16 @@ class TurtleBotController(Node):
         (_, _, yaw) = euler_from_quaternion([
             orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w
         ])
-        yaw=(yaw+np.pi)%np.pi-np.pi
-        self.robot_forward = np.array([np.cos(-yaw), np.sin(-yaw), 0.0], dtype=np.float32)
+        # yaw=(yaw+np.pi)%np.pi-np.pi
+        yaw=-yaw
+        self.robot_forward = np.array([np.cos(yaw), np.sin(yaw), 0.0], dtype=np.float32)
 
     def lidar_callback(self, msg):
         """ ✅ -60도에서 60도 사이 121개 샘플을 저장 """
         ranges = np.array(msg.ranges, dtype=np.float32)
 
-        part1 = ranges[300:360]  # 300 ~ 359 (60개)
-        part2 = ranges[0:61]     # 0 ~ 60 (61개)
+        part1 = ranges[300:359]     # 0 ~ 60 (61개)
+        part2 = ranges[0:60]  # 300 ~ 359 (60개)
 
         filtered_ranges = np.concatenate((part1, part2))
         self.lidar_data = np.nan_to_num(filtered_ranges, nan=10.0, posinf=10.0, neginf=0.0)
@@ -73,13 +74,13 @@ class TurtleBotController(Node):
         if msg.markers:
             target_marker = msg.markers[-1]
             self.target_position = np.array([
-                -target_marker.pose.position.y,
                 target_marker.pose.position.x,
+                target_marker.pose.position.y,
                 0
             ], dtype=np.float32)
 
-        # ✅ 입력 벡터 생성
-        self.input_vector[:121] = self.lidar_data *15
+                # ✅ 입력 벡터 생성
+        self.input_vector[:121] = self.lidar_data * 15
         self.input_vector[121:124] = self.robot_forward
         self.input_vector[124:127] = self.robot_position
         self.input_vector[127:130] = self.target_position
@@ -96,8 +97,8 @@ class TurtleBotController(Node):
         outputs = self.session.run(None, {self.input_name: model_input})
 
         if len(msg.markers) != 0:
-            self.linear_velocity = max(min(outputs[2][0][1] * self.v_sale, 0.3), -0.3)+0.02
-            self.angular_velocity = max(min(outputs[2][0][0] * self.w_sale, 0.4), -0.4)
+            self.linear_velocity = max(min(outputs[2][0][1] * self.v_sale, 0.1), -0.1)+0.05
+            self.angular_velocity = max(min(outputs[2][0][0] * self.w_sale, 0.2), -0.2)
             # if self.linear_velocity <=0:
             #     self.angular_velocity=-self.angular_velocity
 

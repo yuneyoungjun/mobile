@@ -58,6 +58,7 @@ class LivePlotter(Node):
         angle_min = msg.angle_min
         angle_increment = msg.angle_increment
         self.laser_angles = angle_min + np.arange(len(self.laser_ranges)) * angle_increment
+        print(len(msg.ranges))
 
     def onclick(self, event):
         """ ✅ 마우스 클릭 시 좌표를 웨이포인트로 추가 """

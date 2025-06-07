@@ -19,6 +19,7 @@ class GoalNavigationNode(Node):
         self.goal_y = 0.0
         self.goal_theta = 90.0  # deg
         self.waypoint=[[0.0,0.0],[2.1,0.8],[3.83, -1.02],[5.75,0.47],[0.0,0.0] ]
+        # self.waypoint=[[0.0,0.0],[2.0,1.0],[4.0, -1.0],[6.0,0.0],[0.0,0.0] ]
         self.range=0.25
 
 

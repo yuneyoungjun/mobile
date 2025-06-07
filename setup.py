@@ -30,6 +30,7 @@ setup(
             "waypoint=mobile.waypoint:main",
             "waypoint_pub=mobile.waypoint_pub:main",
             "rein=mobile.rein:main",
+            "avoid=mobile.avoid:main"
         ],
     },
 )
