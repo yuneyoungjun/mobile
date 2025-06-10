@@ -15,8 +15,8 @@ class GoalNavigationNode(Node):
         self.robot_theta = 0.0  # deg
 
         # 목표 위치
-        self.goal_x = 3.0
-        self.goal_y = -0.2
+        self.goal_x = 2.0
+        self.goal_y = -0.0
         self.goal_theta = 90.0  # deg
 
         # 제어 파라미터
@@ -26,8 +26,8 @@ class GoalNavigationNode(Node):
         self.mode = "1"  # 주행 방향 (전진 or 후진)
 
         # 속도 제한
-        self.max_linear_velocity = 0.1   # m/s
-        self.max_angular_velocity = 0.3  # rad/s
+        self.max_linear_velocity = 0.15   # m/s
+        self.max_angular_velocity = 0.4  # rad/s
 
         # 방향 설정
         self.setDirection()
@@ -116,7 +116,7 @@ class GoalNavigationNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = GoalNavigationNode()
-    try:
+    try: 
         rclpy.spin(node)
     except KeyboardInterrupt:
         node.get_logger().info("Shutting down node.")
