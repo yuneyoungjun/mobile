@@ -15,23 +15,19 @@ class GoalNavigationNode(Node):
         self.robot_theta = 0.0  # deg
 
         # 목표 위치
-        self.goal_x = 0.0
-        self.goal_y = 0.0
+        self.goal_x = 2.0
+        self.goal_y = -0.0
         self.goal_theta = 90.0  # deg
-        self.waypoint=[[0.0,0.0],[2.1,0.8],[3.83, -1.02],[5.75,0.47],[0.0,0.0] ]
-        # self.waypoint=[[0.0,0.0],[2.0,1.0],[4.0, -1.0],[6.0,0.0],[0.0,0.0] ]
-        self.range=0.25
-
 
         # 제어 파라미터
         self.K_rho = 0.3
         self.K_alpha = 0.7
-        self.K_beta = -0.0
+        self.K_beta = -0.15
         self.mode = "1"  # 주행 방향 (전진 or 후진)
 
         # 속도 제한
-        self.max_linear_velocity = 0.1   # m/s
-        self.max_angular_velocity = 0.5  # rad/s
+        self.max_linear_velocity = 0.15   # m/s
+        self.max_angular_velocity = 0.4  # rad/s
 
         # 방향 설정
         self.setDirection()
@@ -72,23 +68,11 @@ class GoalNavigationNode(Node):
         v = self.saturationVelocity(v)
         w = self.saturationAngularVelocity(w)
 
-
-
-        if self.waypoint:
-            self.goal_x=self.waypoint[0][0]
-            self.goal_y=self.waypoint[0][1]
-            self.goal_theta=0
-        else:
-            v=0
-            w=0
-
-
-        print(self.goal_x)
-        print(self.goal_y)
         twist = Twist()
         twist.linear.x = float(v)
         twist.angular.z = float(w)
         self.cmd_vel_pub.publish(twist)
+
         self.get_logger().info(f"x={self.robot_x:.2f}, y={self.robot_y:.2f}, theta={self.robot_theta:.2f}")
         self.get_logger().info(f"Publishing cmd_vel: v={v:.2f}, w={w:.2f}")
 
@@ -110,8 +94,12 @@ class GoalNavigationNode(Node):
         if self.mode == "2":
             v = -v
 
-        if rho < self.range:
-            self.waypoint.pop(0)
+        if rho < 0.15 :
+            v = 0
+            heading_error = self.saturationRad(np.deg2rad(self.goal_theta) - np.deg2rad(self.robot_theta))
+            w = 0.3 * heading_error
+            if abs(heading_error) < 5 * np.pi / 180:
+                w = 0.0
 
         return v, w
 
@@ -125,11 +113,10 @@ class GoalNavigationNode(Node):
         return max(-self.max_angular_velocity, min(self.max_angular_velocity, w))
 
 
-
 def main(args=None):
     rclpy.init(args=args)
     node = GoalNavigationNode()
-    try:
+    try: 
         rclpy.spin(node)
     except KeyboardInterrupt:
         node.get_logger().info("Shutting down node.")
